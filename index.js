@@ -7,12 +7,16 @@ const getAppName = () => {
   try {
     const app = require(__dirname + "/package.json");
     return app.name;
-  } catch (error) {}
+  } catch (error) {
+    console.warn("Unable to infer application name from package.json");
+  }
 
   try {
     const { app } = require("electron");
     return app.getName();
-  } catch (error) {}
+  } catch (error) {
+    console.warn("Unable to infer application name from electron's 'app' module");
+  }
 
   return undefined;
 };
@@ -21,8 +25,8 @@ const getDatabasePath = (fallbackName) => {
   let appName = getAppName();
   if (!appName) {
     console.warn(
-      `Could not extract app name from package.json or electron data.` +
-        `Using the collection name ${fallbackName} as fallback value to create database filepath.`
+      `Could not infer app name from package.json or electron's app. Using the collection name` +
+        `${fallbackName} as fallback value to create database filepath.`
     );
     appName = fallbackName;
   }
@@ -46,13 +50,15 @@ module.exports = {
 class Collection {
   constructor(name, filepath) {
     this.name = name;
+    this._data = { [this.name]: [] };
     if (fs.existsSync(filepath)) {
       console.log(`Found existing database table at ${filepath}`);
       this.filepath = filepath;
+      this.sync();
     } else {
       try {
         fs.mkdirSync(path.dirname(filepath), { recursive: true });
-        fs.writeFileSync(filepath, JSON.stringify({ [this.name]: [] }, null, 2));
+        fs.writeFileSync(filepath, JSON.stringify(this.data, null, 2));
         console.log(`Created database table at ${filepath}`);
         this.filepath = filepath;
       } catch (error) {
@@ -61,65 +67,72 @@ class Collection {
     }
   }
 
+  get data() {
+    return this._data;
+  }
+
+  set data(newData) {
+    this._data = newData;
+    fs.writeFileSync(this.filepath, JSON.stringify(this._data, null, 2));
+  }
+
+  sync() {
+    if (this.filepath && fs.existsSync(this.filepath)) {
+      this.data = JSON.parse(fs.readFileSync(this.filepath));
+    } else {
+      throw new Error(`No database file found at ${this.filepath} for collection ${this.name}.`);
+    }
+  }
+
   insert(document) {
     return new Promise((resolve, reject) => {
-      if (this.filepath && fs.existsSync(this.filepath)) {
-        let data = JSON.parse(fs.readFileSync(this.filepath));
+      let newData = this.data;
 
-        const _insert = (document) => {
-          if (!document || typeof document !== "object") {
-            reject(`Trying to insert invalid document: ${document}`);
-            return;
-          }
-          if (!("id" in document)) {
-            let id = crypto.randomBytes(16).toString("hex");
-            document["id"] = id;
-          }
-          data[this.name].push(document);
-        };
-
-        if (Array.isArray(document)) {
-          document.forEach((d) => _insert(d));
-        } else {
-          _insert(document);
+      let insertedDocuments = [];
+      const _insert = (document) => {
+        if (!document || typeof document !== "object") {
+          reject(`Trying to insert invalid document: ${document}`);
+          return;
         }
-
-        try {
-          fs.writeFileSync(this.filepath, JSON.stringify(data, null, 2));
-          resolve(document);
-        } catch (error) {
-          reject(error);
+        if (!("id" in document)) {
+          let id = crypto.randomBytes(16).toString("hex");
+          document["id"] = id;
         }
+        newData[this.name].push(document);
+        insertedDocuments.push(document);
+      };
+
+      if (Array.isArray(document)) {
+        document.forEach((d) => _insert(d));
       } else {
-        reject(`No database file for ${this.name} collection found.`);
+        _insert(document);
       }
+
+      this.data = newData;
+      resolve(insertedDocuments);
     });
   }
 
   find(query = {}) {
     return new Promise((resolve, reject) => {
-      if (this.filepath && fs.existsSync(this.filepath)) {
-        const data = JSON.parse(fs.readFileSync(this.filepath));
+      const data = this.data;
 
-        let results = [];
-        if (typeof query === "object") {
-          if (Object.keys(query).length === 0) {
-            results = data[this.name];
-          } else {
-            results = data[this.name].filter((document) =>
-              Object.keys(query).every((key) => document[key] === query[key])
-            );
-          }
-        } else if (typeof query === "function") {
-          results = data[this.name].filter(query);
+      let results = [];
+      if (typeof query === "object") {
+        if (Object.keys(query).length === 0) {
+          results = data[this.name];
         } else {
-          reject(`Invalid query: ${query}`);
+          results = data[this.name].filter((document) =>
+            Object.keys(query).every((key) => document[key] === query[key])
+          );
         }
-
-        resolve(results);
+      } else if (typeof query === "function") {
+        results = data[this.name].filter(query);
       } else {
-        reject(`No database file for ${this.name} collection found.`);
+        reject(`Invalid query: ${query}`);
       }
+
+      resolve(results);
     });
   }
 
@@ -133,69 +146,53 @@ class Collection {
 
   update(query = {}, set) {
     return new Promise((resolve, reject) => {
-      if (fs.existsSync(this.filepath)) {
-        let data = JSON.parse(fs.readFileSync(this.filepath));
+      let newData = this.data;
 
-        let matches;
-        if (typeof query === "object") {
-          matches = (document) => Object.keys(query).every((key) => document[key] === query[key]);
-        } else if (typeof query === "function") {
-          matches = query;
-        }
-
-        let updatedDocuments = [];
-        data[this.name] = data[this.name].map((document) => {
-          if (matches(document)) {
-            const updatedDocument = { ...document, ...set };
-            updatedDocuments.push(updatedDocument);
-            return updatedDocument;
-          }
-          return document;
-        });
-
-        try {
-          fs.writeFileSync(this.filepath, JSON.stringify(data, null, 2));
-          resolve(updatedDocuments);
-        } catch (error) {
-          reject(error);
-        }
-      } else {
-        reject(`No database file for ${this.name} collection found.`);
+      let matches;
+      if (typeof query === "object") {
+        matches = (document) => Object.keys(query).every((key) => document[key] === query[key]);
+      } else if (typeof query === "function") {
+        matches = query;
       }
+
+      let updatedDocuments = [];
+      newData[this.name] = newData[this.name].map((document) => {
+        if (matches(document)) {
+          const updatedDocument = { ...document, ...set };
+          updatedDocuments.push(updatedDocument);
+          return updatedDocument;
+        }
+        return document;
+      });
+
+      this.data = newData;
+      resolve(updatedDocuments);
     });
   }
 
   delete(query = {}) {
     return new Promise((resolve, reject) => {
-      if (this.filepath && fs.existsSync(this.filepath)) {
-        let data = JSON.parse(fs.readFileSync(this.filepath));
+      let newData = this.data;
 
-        let toDelete = [];
-        if (typeof query === "object") {
-          if (Object.keys(query).length === 0) {
-            toDelete = data[this.name];
-          } else {
-            toDelete = data[this.name].filter((document) =>
-              Object.keys(query).every((key) => document[key] === query[key])
-            );
-          }
-        } else if (typeof query === "function") {
-          toDelete = data[this.name].filter(query);
+      let toDelete = [];
+      if (typeof query === "object") {
+        if (Object.keys(query).length === 0) {
+          toDelete = newData[this.name];
         } else {
-          reject(`Invalid query: ${query}`);
+          toDelete = newData[this.name].filter((document) =>
+            Object.keys(query).every((key) => document[key] === query[key])
+          );
         }
-
-        data[this.name] = data[this.name].filter((document) => !toDelete.includes(document));
-
-        try {
-          fs.writeFileSync(this.filepath, JSON.stringify(data, null, 2));
-          resolve(toDelete);
-        } catch (error) {
-          reject(error);
-        }
+      } else if (typeof query === "function") {
+        toDelete = newData[this.name].filter(query);
       } else {
-        reject(`No database file for ${this.name} collection found.`);
+        reject(`Invalid query: ${query}`);
       }
+
+      newData[this.name] = newData[this.name].filter((document) => !toDelete.includes(document));
+
+      this.data = newData;
+      resolve(toDelete);
     });
   }
 
