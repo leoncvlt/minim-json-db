@@ -1,0 +1,14 @@
+{
+  "name": "minim-json-db",
+  "version": "0.1.0",
+  "description": "A lightweight database for node / electron apps with simple MongoDB-like methods wich stores data locally in .json files",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "author": "Leonardo Cavaletti <impeto.blu@gmail.com>",
+  "license": "ISC",
+  "devDependencies": {
+    "jest": "^26.2.2"
+  }
+}
