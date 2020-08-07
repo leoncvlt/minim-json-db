@@ -1,6 +1,6 @@
 # minim-json-db
 
-A minimal, lightweight NoSQL database implementation for node / electron apps with a simple API inspired by MongoDB. The data is stored locally as .json files.
+A minimal, lightweight NoSQL database implementation for node.js / electron apps which stores data locally in .json files with a simple MongoDB-inspired API
 
 ## Usage
 
@@ -28,7 +28,7 @@ Adds the javascript object `object` to the collection. If the object provided do
 ### `collection.find(query)`
 Finds and returns all the documents in the collection that match the provided `query`. A query can be of two types:
 
-- An **object** will return all documents whose properties match the query object exactly. E.g. `collection.find({ age: 18 })` will return all document with a `age` field with an exact value of 18
+- An **object** will return all documents whose properties match the query object exactly. E.g. `collection.find({ age: 18 })` will return all documents with a `age` field with an exact value of 18
 - A **function** will be used to [filter](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/filter) through all the elements in the collection and return all documents which pass the test implemented by the function. E.g. `collection.find((doc) => doc.age > 18)` will return all document with an `age` field which is larger than 18.
 
 Returns a promise for an array with the results (or an empty one if no results were found). Omit `query` to fetch all documents in the collection.

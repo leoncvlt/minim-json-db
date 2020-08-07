@@ -1,13 +1,29 @@
 {
   "name": "minim-json-db",
   "version": "0.1.0",
-  "description": "A lightweight database for node / electron apps with simple MongoDB-like methods wich stores data locally in .json files",
+  "description": "A minimal NoSQL database implementation for node.js / electron apps which stores data locally in .json files with a simple MongoDB-inspired API",
+  "keywords": [
+    "json",
+    "electron",
+    "database",
+    "db",
+    "nosql",
+    "mongo",
+    "mongodb",
+    "local",
+    "store"
+  ],
+  "homepage": "https://github.com/leoncvlt/minim-json-db",
   "main": "index.js",
   "scripts": {
     "test": "jest"
   },
-  "author": "Leonardo Cavaletti <impeto.blu@gmail.com>",
-  "license": "ISC",
+  "author": "Leonardo Cavaletti <impeto.blu@gmail.com> (https://github.com/leoncvlt)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/leoncvlt/minim-json-db"
+  },
   "devDependencies": {
     "jest": "^26.2.2"
   }
