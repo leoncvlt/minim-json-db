@@ -5,7 +5,7 @@ const crypto = require("crypto");
 
 const getAppName = () => {
   try {
-    const app = require(__dirname + "/package.json");
+    const app = require(path.join(process.cwd(), "package.json"));
     return app.name;
   } catch (error) {
     console.warn("Unable to infer application name from package.json");
